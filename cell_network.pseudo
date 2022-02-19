@@ -1,0 +1,235 @@
+// init state variables
+clock = 0;                              // system clock
+futureEventList = {};                   // priority queue of events, sorted by arrival time
+
+numBlocked = 0;                         // number of blocked calls
+numDropped = 0;                         // number of dropped calls
+numGeneratedCalls = 0;                  // number of generated calls
+numTotal = 10000;                       // number of total calls
+Station[] stations = new Station[20];   // array of 20 stations
+
+/* 
+For FCA scheme 1,
+- numFreeChannels = 10;
+- numReservedHandover = 0;
+
+For FCA scheme 2,
+- numFreeChannels = 9;
+- numReservedHandover = 1;
+*/
+fcaScheme = 1;                          // [1,2] FCA scheme
+
+
+def main(){
+    // generate the 20 stations
+    for i = 0; i < 20; i++{
+        // create stations with id (i+1)
+        stations[i] = new Station(i + 1);
+        // set number of available channels
+        stations[i].numAvailableChannels = 10;
+    }
+
+    // generate call events
+    // generate random car direction (equal probabilities)
+    direction = Random(left,right);
+    // generate car position relative to base stations (uniform distribution)
+    // range of each base station is 2km
+    position = Uniform(0,2);
+    // create callInitation event
+    callInitiationEvent = new CallInitiation(initationTime, carSpeed, currentStation, position, callDuration, direction);
+    // add to futureEventList
+    futureEventList.add(callInitiationEvent);
+    // increment number of generated calls
+    numGeneratedCalls++;
+
+    // event handling loop
+    while futureEventList.size() > 0{
+        // get the next event
+        event = futureEventList.dequeue();
+        // update system clock
+        clock = event.Time();
+        // handle the events
+        if event is CallInitiation{
+            // handle call initiation event
+            handleCallInitiationEvent(event);
+        }
+        else if event is CallHandover{
+            // handle call handover event
+            handleCallHandoverEvent(event);
+        }
+        else if event is CallTermination{
+            // handle call drop event
+            handleCallTerminationEvent(event);
+        }
+    }
+
+    // generate the results
+    rateBlocked = numBlocked / numTotal;
+    rateDropped = numDropped / numTotal;
+    
+    // if rateBlocked less than 2% and rateDropped less than 1%, print FCA scheme {fcaScheme} is successful
+    if rateBlocked < 0.02 && rateDropped < 0.01{
+        print "FCA scheme {fcaScheme} is successful";
+    }
+    else{
+        print "FCA scheme {fcaScheme} is not successful";
+    }
+}
+
+// handle call initiation event
+def handleCallInitiationEvent(event){
+    // get system clock
+    clock = event.Time();
+    // get car direction
+    direction = event.Direction();
+    // get car position relative to base stations
+    position = event.Position();
+    // get current station
+    currentStation = event.CurrentStation();
+    // get call duration
+    callDuration = event.CallDuration();
+    // get car speed
+    carSpeed = event.CarSpeed();
+
+    // check for available channels
+    numAvailableChannels = currentStation.getNumAvailableChannels();
+    /* call is blocked if:
+    1. numAvailableChannels == 0; or
+    2. numAvailableChannels == 1 and fcaScheme == 2;
+    */
+    if (numAvailableChannels == 0) || (numAvailableChannels == 1 && fcaScheme == 2) {
+        numBlocked++;
+    }
+    else{
+        // utilize one available channel
+        // decrease numAvailableChannels by 1
+        currentStation.numAvailableChannels--;
+        // get station id of current station
+        stationId = currentStation.getId();
+        // calculate distance from current position to next Station
+        distanceToNext = 2 - position;
+        // calculate time to reach next station
+        timeToNext = distanceToNext / carSpeed * 3600;
+        
+        // initialize next event
+        nextEvent = NULL;
+        /* Call Termination Event if:
+        1. call duration <= timeToNext; or */
+        if (callDuration <= timeToNext) {
+            // create call termination event
+            nextEvent = new CallTermination(clock + callDuration, currentStation);
+        }
+        /* 
+        2. car is in the last station */
+        else if (stationId == 20 and direction == right) || (stationId == 1 and direction == left) {
+            // create call termination event
+            nextEvent = new CallTermination(clock + timeToNext, currentStation);
+        }
+        // else create  call handover event
+        else{
+            // calculate handover time
+            handoverTime = clock + timeToNext;
+            // get remaining call duration
+            remainingCallDuration = callDuration - timeToNext;
+            // create call handover event
+            nextEvent = new CallHandover(handoverTime, carSpeed, currentStation, remainingCallDuration, direction);
+        }
+
+        // add next event to futureEventList
+        futureEventList.add(nextEvent);
+    }
+
+    // create next call initiation events if generated calls is less than total calls
+    if (numGeneratedCalls < numTotal){
+        // generate random car direction (equal probabilities)
+        direction = Random(left,right);
+        // generate car position relative to base stations (uniform distribution)
+        // range of each base station is 2km
+        position = Uniform(0,2);
+        // create callInitation event
+        callInitiationEvent = new CallInitiation(initiationTime, carSpeed, currentStation, position, callDuration, direction);
+        // add to futureEventList
+        futureEventList.add(callInitiationEvent);
+        // increment number of generated calls
+        numGeneratedCalls++;
+    }
+}
+
+// handle call handover event Function
+def handleCallHandoverEvent(event){
+    // get system clock
+    clock = event.Time();
+    // get remaining call duration
+    callDuration = event.callDuration();
+    // get car speed
+    carSpeed = event.CarSpeed();
+    // get prev station
+    prevStation = event.PrevStation();
+    // get car direction
+    direction = event.Direction();
+
+    // get current station id using prevStation and direction
+    if (direction == left){
+        currentStationId = prevStation.getId() - 1;
+    }
+    else{
+        currentStationId = prevStation.getId() + 1;
+    }
+    // get current station
+    currentStation = stations[currentStationId + 1];
+
+    // free channel of previous station
+    prevStation.numAvailableChannels++;
+    // check for available channels
+    numAvailableChannels = currentStation.getNumAvailableChannels();
+    // call is dropped if there are no available channels
+    if (numAvailableChannels == 0) {
+        // increment numDropped
+        numDropped++;
+        // exit function
+        return;
+    }
+    else{
+        // utilize one available channel
+        // decrease numAvailableChannels by 1
+        currentStation.numAvailableChannels--;
+    }
+
+    distanceToNext = 2;
+    timeToNext = distanceToNext / carSpeed * 3600;
+    // initialize next event
+    nextEvent = NULL;
+    /* Call Termination Event if:
+    1. call duration <= timeToNext; or */
+    if (callDuration <= timeToNext) {
+        // create call termination event
+        nextEvent = new CallTermination(clock + callDuration, currentStation);
+    }
+    /*
+    2. car is in the last station */
+    else if (currentStationId == 20 and direction == right) || (currentStationId == 1 and direction == left) {
+        // create call termination event
+        nextEvent = new CallTermination(clock + timeToNext, currentStation);
+    }
+    // else create  call handover event
+    else{
+        // calculate handover time
+        handoverTime = clock + timeToNext;
+        // get remaining call duration
+        remainingCallDuration = callDuration - timeToNext;
+        // create call handover event
+        nextEvent = new CallHandover(handoverTime, carSpeed, currentStation, remainingCallDuration, direction);
+    }
+    // add next event to futureEventList
+    futureEventList.add(nextEvent);
+}
+
+// handle call termination event
+def handleCallTerminationEvent(event){
+    // get system clock
+    clock = event.Time();
+    // get current station
+    currentStation = event.CurrentStation();
+    // free channel of current station
+    currentStation.numAvailableChannels++;
+}
