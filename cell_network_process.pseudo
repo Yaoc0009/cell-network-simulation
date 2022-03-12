@@ -12,6 +12,12 @@ for i = 0; i < 20; i++{
     stations[i].numAvailableChannels = 10;
 }
 
+MainProcess() {
+    while numTotal < totalNumCarProcess {
+        carProcess()
+    }
+}
+
 CarProcess() {
     // track number of calls
     numTotal++;
