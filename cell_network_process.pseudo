@@ -1,0 +1,94 @@
+// init state variables
+numBlocked = 0;                         // number of blocked calls
+numDropped = 0;                         // number of dropped calls
+numTotal = 0;                       // number of total calls
+Station[] stations = new Station[20];   // array of 20 stations
+
+// generate the 20 stations
+for i = 0; i < 20; i++{
+    // create stations with id (i+1)
+    stations[i] = new Station(i + 1);
+    // set number of available channels
+    stations[i].numAvailableChannels = 10;
+}
+
+CarProcess() {
+    // track number of calls
+    numTotal++;
+    // generate random number for current base station with probability distribution X
+    currentStation = DiscreteRandom(X, 20);
+    // generate random direction with equal probabilities
+    direction = Random(left, right);
+    // generate random position with uniform probability
+    position = Uniform(0, 2);
+    // generate random speed with probability distribution Y
+    speed = Random(Y);
+    // generate random duration of call with probability distribution Z
+    callDuration = Random(Z);
+
+    // check for available channels
+    numAvailableChannels = currentStation.numAvailableChannels;
+    // if no available channels, increase blocked calls, exit call process
+    if (numAvailableChannels == 0) {
+        numBlocked++;
+        return;
+    }
+    else {
+        // use one of the channels and decrease available channels
+        currentStation.numAvailableChannels--;
+    }
+
+    // get current station number
+    stationId = currentStation.id;
+    // calc distance to next station
+    distanceToNext = 2 - position;
+    // calc time to next station
+    timeToNext = distanceToNext / speed;
+
+    // while callDuration > timeToNext, there will be a call handover.
+    // if reached the end, call is terminated
+    while (callDuration > timeToNext) {
+        // if direction is left, move to next station
+        if (direction == left) {
+            // if reached the end, call is terminated
+            if (stationId == 1) {
+                return;
+            }
+            else {
+                // move to next station
+                stationId--;
+            }
+        }
+        // if direction is right, move to previous station
+        else {
+            // if reached the end, call is dropped
+            if (stationId == 20) {
+                return;
+            }
+            else {
+                // move to previous station
+                stationId++;
+            }
+        }
+
+        //check for available channel in current station, drop call if no available channels
+        numAvailableChannels = stations[stationId-1].numAvailableChannels;
+        if (numAvailableChannels == 0) {
+            numDropped++;
+            return;
+        }
+        else {
+            // use one of the channels and decrease available channels
+            stations[stationId].numAvailableChannels--;
+        }
+        // calc distance to next station
+        distanceToNext = 2;
+        // calc time to next station
+        timeToNext = distanceToNext / speed;
+        // calc remainder callDuration
+        callDuration = callDuration - timeToNext;
+    }
+
+    // if callDuration < timeToNext, call is terminated, free available channel for current station
+    stations[stationId-1].numAvailableChannels++;
+}
