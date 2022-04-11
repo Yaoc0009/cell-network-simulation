@@ -14,7 +14,7 @@ def run_simulation(epochs, num_iter, scheme, total_calls, warmup_period):
     qos_failed_blocked_count = 0
     qos_failed_dropped_count = 0
     num_sims = 0
-    records = []
+
     for i in range(epochs):
         blocked_rates_ls = []
         dropped_rates_ls = []
