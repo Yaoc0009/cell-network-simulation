@@ -1,4 +1,4 @@
-from model_helpers import *
+from simulator.model_helpers import *
 import pandas as pd
 import numpy as np
 

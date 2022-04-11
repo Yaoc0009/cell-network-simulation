@@ -1,5 +1,5 @@
 from statistics import mean
-from simulation_model import Simulator
+from simulator.simulation_model import Simulator
 import numpy as np
 import scipy.stats as stats
 import pandas as pd
